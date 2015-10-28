@@ -330,7 +330,7 @@ def generateAndRunPyNN(pynnSim,
     
 
 
-def generateAndRunNeuron(project, 
+def generateNeuron(project, 
                          projectManager, 
                          simConfig, 
                          simRef, 
@@ -378,9 +378,33 @@ def generateAndRunNeuron(project,
     
     if verbose: print prefix+"Compiled NEURON files for: "+simRef
     
+    return compileSuccess
+
+
+def generateAndRunNeuron(project, 
+                         projectManager, 
+                         simConfig, 
+                         simRef, 
+                         simulatorSeed, 
+                         verbose=               True,
+                         quitAfterRun=          False,
+                         runInBackground=       False,
+                         varTimestep=           False,
+                         varTimestepTolerance=  None,
+                         saveAsHdf5 =           False,
+                         runMode =              NeuronFileManager.RUN_HOC):
     
     ### Set simulation running
-    
+    prefix = "--- NEURON gen:   "
+
+    compileSuccess = generateNeuron(project, projectManager, simConfig, simRef,
+                                    simulatorSeed, verbose=verbose, 
+                                    quitAfterRun=quitAfterRun, 
+                                    runInBackground=runInBackground,
+                                    varTimestep=varTimestep,
+                                    varTimestepTolerance=varTimestepTolerance,
+                                    saveAsHdf5=saveAsHdf5,runMode=runMode)
+
     if compileSuccess:
 
         success = projectManager.doRunNeuron(simConfig)
@@ -394,8 +418,6 @@ def generateAndRunNeuron(project,
 
     else:
         return False
-
-
 
         
 class SimulationManager():
@@ -677,6 +699,7 @@ class SimulationManager():
                         simulatorSeed =             11111,
                         simulators =                ["NEURON", "GENESIS_PHYS"],
                         runSims =                   True,
+                        generateSims =              True,
                         verboseSims =               True,
                         runInBackground =           False,
                         varTimestepNeuron =         None,
@@ -792,20 +815,22 @@ class SimulationManager():
                     if varTimestepTolerance is None:
                         varTimestepTolerance = self.project.neuronSettings.getVarTimeAbsTolerance()
 
-                    if runSims:
-                        success = generateAndRunNeuron(self.project,
-                                             self.projectManager,
-                                             simConfig,
-                                             simRef,
-                                             simulatorSeed,
-                                             verbose=               verboseSims,
-                                             runInBackground=       runInBackground,
-                                             varTimestep=           varTimestepNeuron,
-                                             varTimestepTolerance=  varTimestepTolerance,
-                                             saveAsHdf5 =           saveAsHdf5,
-                                             runMode =              runMode)
+                    if generateSims or runSims:
+                        func = generateAndRunNeuron if runSims else generateNeuron
+                        print("Using function %s" % str(func))
+                        success = func(self.project,
+                                         self.projectManager,
+                                         simConfig,
+                                         simRef,
+                                         simulatorSeed,
+                                         verbose=               verboseSims,
+                                         runInBackground=       runInBackground,
+                                         varTimestep=           varTimestepNeuron,
+                                         varTimestepTolerance=  varTimestepTolerance,
+                                         saveAsHdf5 =           saveAsHdf5,
+                                         runMode =              runMode)
                                              
-                        if success:
+                        if success and runSims:
                             self.allRunningSims.append(simRef)
                             allSimsSetRunning.append(simRef)
                     else:

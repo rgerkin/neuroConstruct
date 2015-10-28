@@ -72,15 +72,32 @@ class Sim():
 			                       "simulations",
 			                       sim_path))
 		
+	def generate_sim_files(self, simulator):
+		simulator = simulator.lower()
+		assert simulator in ['neuron',]
+		print("Generating simulation files for '%s'." % simulator)
+		if simulator == 'neuron':
+			try:
+				self.manager.runMultipleSims(simulators=SIMULATORS,
+										 	 runInBackground=True,
+										 	 runSims=False) # Generate but
+										 	 				# don't run   
+			except NeuronException,e:
+				print str(e)
+			except Exception,e:
+				raise e
+		return True # Success.
+
 	def run(self):
 		print "Running simulation."
 		try:
 			# Run with only one sim.
 			self.manager.runMultipleSims(simulators=SIMULATORS,
 										 runInBackground=True)   
-		except NeuronException,e:
+		except NeuronException as e:
 			print str(e)
-		except Exception,e:
+		except Exception as e:
+			print str(e)
 			raise e
 		return True # Success.
 

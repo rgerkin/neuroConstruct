@@ -112,6 +112,7 @@ class Channel(object):
 
 
 def run_sim(project_path=None,
+            only_generate=False,
             useSocket=True,
             useNC=True,
             useNeuroTools=True,
@@ -126,6 +127,7 @@ def run_sim(project_path=None,
     channel = Channel()
     jython_side(channel,
                 project_path=project_path,
+                only_generate=only_generate,
                 useNC=useNC,
                 useNeuroTools=useNeuroTools,
                 runtime_methods=runtime_methods,
@@ -139,6 +141,7 @@ def run_sim(project_path=None,
       pass
     channel = gw.remote_exec(jython_side,
                              project_path=project_path,
+                             only_generate=only_generate,
                              useNC=useNC,
                              useNeuroTools=useNeuroTools,
                              runtime_methods=runtime_methods,
@@ -187,8 +190,10 @@ def jython_init(channel,**kwargs):
 
 def jython_side(channel,
                 project_path=None,
+                only_generate=False,
                 useNC=True,
                 useNeuroTools=True,
+                simulators=['neuron'],
                 runtime_methods={},
                 **kwargs):
   """A jython function executed on the remote side of the execnet gateway."""
@@ -208,69 +213,41 @@ def jython_side(channel,
   logger = ClassLogger("JythonOut")
   logger.logComment("Starting...")
   
-  '''
-  sim = jutils.Sim(project_path=project_path)
-  sim_methods = inspect.getmembers(jutils.Sim, predicate=inspect.ismethod)
-  sim_methods = zip(*sim_methods)[0]
-  print sim_methods
-  print "A"
-  for key,value in runtime_methods.items():
-    print "B",value,value[0]
-    if key in sim_methods:
-      print "C"
-    # If a jutils.Sim method is one of the keys.  
-      method = getattr(sim,key)
-      if len(value) == 1:
-        print "D"
-        if type(value) in (tuple,list):
-          print "E"
-          args = tuple(value[0])
-          print "F"
-          kwargs = {}
-        elif type(value) is dict:
-          
-          args = ()
-          kwargs = value[0]
-      elif len(value) == 2:
-        args = tuple(value[0])
-        kwargs = value[1]
-      print "G"
-      logger.logComment("Running method %s with args %s and kwargs %s",
-                        key,
-                        str(args),
-                        str(kwargs),)
-      print "Method is ",method
-      print "Args are ",args
-      print "Kwargs are ",kwargs
-      method(*args,**kwargs)
-  '''
   print("About to run sim.")
   import os
   #print(os.environ)
   #print(sys.path)
-  j.sim.run()
-  print("Just ran sim.")
+  if only_generate:
+    for simulator in simulators:
+      j.sim.generate_sim_files(simulator)
+      print("Just generated sim files for '%s'." % simulator)
+  else:
+    j.sim.run()
+    print("Just ran sim.")
 
   if useNeuroTools:
     # If using NeuroTools, just send the directory name and extract data
     # using NeuroTools methods.
-    print("Getting sim data.")  
-    sim_data = j.sim.get_sim_data(run=False)
-    if isinstance(sim_data,SimulationDataException):
-      print("Error: %s" % sim_data)
-      channel.send(str(sim_data))
-    elif not sim_data:
-      print("No sim data.")
-      channel.send('')
+    if not only_generate:
+      print("Getting sim data.")  
+      sim_data = j.sim.get_sim_data(run=False)
+      if isinstance(sim_data,SimulationDataException):
+        print("Error: %s" % sim_data)
+        channel.send(str(sim_data))
+      elif not sim_data:
+        print("No sim data.")
+        channel.send('')
+      else:
+        print("Got sim data.")  
+        sim_dir = sim_data.getSimulationDirectory()
     else:
-      print("Got sim data.")  
-      sim_dir = sim_data.getSimulationDirectory()
-      logger.logComment("Here is the sim directory:")
-      logger.logComment(str(sim_dir))
-      print("Sending sim dir.")
-      channel.send(str(sim_dir))
-      logger.logComment("Sent sim directory")
-      print("Sent sim dir.")
+      sim_dir = j.sim.sim_dir
+    logger.logComment("Here is the sim directory:")
+    logger.logComment(str(sim_dir))
+    print("Sending sim dir.")
+    channel.send(str(sim_dir))
+    logger.logComment("Sent sim directory")
+    print("Sent sim dir.")
     if useNC:
       # If using direction communication with NeuroConstruct, return the 
       # voltage array directly.  

@@ -21,7 +21,7 @@ export NC_MAX_MEMORY=450M
 # Current version of neuroConstruct
 export NC_VERSION=1.7.1
 
-export JNEUROML_VERSION=0.7.3
+export JNEUROML_VERSION=0.7.1
 
 # These are for an old version of NML2/LEMS...
 export LIB_NEUROML_VERSION=2.0.0
@@ -50,8 +50,9 @@ JNML_JAR=$NC_HOME/jNeuroMLJar/jNeuroML-$JNEUROML_VERSION-jar-with-dependencies.j
 
 
 
-export CLASSPATH=$NC_HOME/neuroConstruct_$NC_VERSION.jar:$H5_JARS:$J3D_JARS:$NC_HOME/lib/jython/jython.jar:$LEMS_JAR:$NML2_JAR:$JNML_JAR
-
+CLASSPATH=$NC_HOME/neuroConstruct_$NC_VERSION.jar:$H5_JARS:$J3D_JARS:$NC_HOME/lib/jython/jython.jar:$LEMS_JAR:$NML2_JAR:$JNML_JAR
+#echo $CLASSPATH
+export CLASSPATH
 
 # Determine 32bit or 64bit architecture for JDK
 machine=`uname -a | grep 64`
