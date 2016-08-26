@@ -607,18 +607,11 @@ public class MorphMLConverter extends FormatImporter
                         segGroupElement.addContent("\n            ");
                         segGroupElement.addComment("This 'Section' has number of internal divisions (nseg) = "+nextSection.getNumberInternalDivisions());
                         
-                        
-                        SimpleXMLElement annotation = new SimpleXMLElement(MetadataConstants.ANNOTATION_ELEMENT_V2);
-                        segGroupElement.addContent("\n                ");
-                        segGroupElement.addChildElement(annotation);
-                        MetadataConstants.addProperty(annotation,
+                        MetadataConstants.addProperty(segGroupElement,
                                                   MorphMLConstants.NUMBER_INTERNAL_DIVS_PROP_V2,
                                                   nextSection.getNumberInternalDivisions()+"",
-                                                  "                    ",
+                                                  "                ",
                                                   version);
-                        annotation.addContent("                ");
-                        
-                        segGroupElement.addContent("\n            ");
                         
                     }
                     
@@ -999,6 +992,18 @@ public class MorphMLConverter extends FormatImporter
 
                     } else {
                         condDens = (float) UnitConverter.getConductanceDensity(chanMech.getDensity(), UnitConverter.NEUROCONSTRUCT_UNITS, preferredExportUnits);
+                        
+                        if (nml2 && condDens<0) {
+                            
+                        GuiUtils.showWarningMessage(logger, "A negative conductance density ("+chanMech.getDensity()+") has been "
+                                + "found for channel mechanism: "+chanMech.getName()+" in "+cell.getInstanceName()+".\n"
+                                + "Such negative channel densities are normally used in neuroConstruct for specifying extra parameters \n"
+                                + "(e.g. erev, shift) across multiple 'real' channel density specifications, which have different values \n"
+                                + "for cond density on soma, axon, dends, etc. This convention is not supported in the export to NeuroML2. \n\n"
+                                + "The solution is to remove the channel mechanism with negative value/extra params, and add the \n"
+                                + "extra parameters to EACH real channel mechanism specification.", null);
+                        }
+                        
                     }
                     List<String> groups = cell.getGroupsWithChanMech(chanMech);
                     if (nml2) {
@@ -1017,6 +1022,13 @@ public class MorphMLConverter extends FormatImporter
                                     mechElement.addAttribute(new SimpleXMLAttribute(BiophysicsConstants.PERMEABILITY_ATTR_V2,
                                             permeability + " " + permeabilityUnit.getNeuroML2Symbol()));
                                 } else {
+                                    if (condDens<0) {
+                                        GuiUtils.showWarningMessage(logger, "The conductance density for channel mechanism: "+chanMech+"\n"
+                                            + "is negative. This convention is usually used in neuroConstruct to specify that a mechanism should be placed on a \n"
+                                            + "large group of sections in the cell, which all share the same extra parameters (e.g. voltage shift, erev), and that\n"
+                                            + "sub groups of this will have different conductance densities. This convention is not currently supported in NML2 however.\n\n"
+                                            + "It is better to explicitly state the conductance density & extra parameters for each sub group.", null);
+                                    }
                                     mechElement = new SimpleXMLElement(bioPrefix + BiophysicsConstants.CHAN_DENSITY_ELEMENT_V2);
                                     mechElement.addAttribute(new SimpleXMLAttribute(BiophysicsConstants.COND_DENS_ATTR_V2,
                                             condDens + " " + condDensUnit.getNeuroML2Symbol()));
@@ -1438,8 +1450,48 @@ public class MorphMLConverter extends FormatImporter
 
                 if (nml2)
                 {
+                    double spikeThresh = -0;
+                    Double uniqueThresh = Double.NaN;
+                    ArrayList<String> cellGroupsWithCell = new ArrayList<String>();
+                    for (String cellGroup: project.generatedCellPositions.getNonEmptyCellGroups())
+                    {
+                        if(project.cellGroupsInfo.getCellType(cellGroup).equals(cell.getInstanceName())) 
+                        {
+                            cellGroupsWithCell.add(cellGroup);
+                        }
+                    }
+                    logger.logComment("cellGroupsWithCell: "+cell+" " + cellGroupsWithCell);
+                    for (String netConn: project.generatedNetworkConnections.getNamesNonEmptyNetConns()) 
+                    {
+                        Vector<SynapticProperties> syns = new Vector<SynapticProperties>();
+                        if (project.morphNetworkConnectionsInfo.isValidSimpleNetConn(netConn) &&
+                            cellGroupsWithCell.contains(project.morphNetworkConnectionsInfo.getSourceCellGroup(netConn))) {
+                            syns.addAll(project.morphNetworkConnectionsInfo.getSynapseList(netConn));
+                        }
+                        if (project.volBasedConnsInfo.isValidVolBasedConn(netConn) &&
+                            cellGroupsWithCell.contains(project.volBasedConnsInfo.getSourceCellGroup(netConn))) {
+                            syns.addAll(project.volBasedConnsInfo.getSynapseList(netConn));
+                        }
+                        logger.logComment("syns: "+syns);
+                        for (SynapticProperties sp: syns) {
+                            spikeThresh = sp.getThreshold();
+                            if (uniqueThresh.isNaN())
+                                uniqueThresh = spikeThresh;
+                            else 
+                            {
+                                if (spikeThresh!=uniqueThresh) {
+                                    throw new NeuroMLException("Error in export to NeuroML2. There are multiple different values for the spiking threshold\n"
+                                        + "in the various network connections using cell "+cell.getInstanceName()+", e.g. "+spikeThresh+" for "+netConn+
+                                        ", "+uniqueThresh+" elsewhere...\n\nNeuroML2 currently specifies the spike threshold as a property of the cell so this needs\n"
+                                        + "to be the same for all network connections.");
+                                    
+                                }
+                            }
+                        }
+                    }
                     SimpleXMLElement el = new SimpleXMLElement(BiophysicsConstants.SPIKE_THRESHOLD_v2);
-                    el.addAttribute(new SimpleXMLAttribute(BiophysicsConstants.PARAMETER_VALUE_ATTR, 0+ " "+voltUnit.getNeuroML2Symbol()));
+                    
+                    el.addAttribute(new SimpleXMLAttribute(BiophysicsConstants.PARAMETER_VALUE_ATTR, spikeThresh + " "+voltUnit.getNeuroML2Symbol()));
                     membPropsElement.addContent("\n\n                ");
                     membPropsElement.addChildElement(el);
                 }
@@ -2068,7 +2120,7 @@ public class MorphMLConverter extends FormatImporter
                         ionPropsSet = true;
                 }
                 if (!ionPropsSet) {
-                    GuiUtils.showWarningMessage(logger, "A species element will be added to the NeuroML2 exported cell for ion: "+ion+", "
+                    GuiUtils.showWarningMessage(logger, "A species element will be added to the NeuroML2 exported cell ("+cell.getInstanceName()+") for ion: "+ion+", "
                             + "which will specify a concentration model to manage the concentration changes.\n"
                             + " However, there are no ion properties (i.e. initial internal/external concentrations) set for "
                             + "the ion in this cell in neuroConstruct!", null);
@@ -2259,13 +2311,23 @@ public class MorphMLConverter extends FormatImporter
             {
                 HashMap<String, String> allChanMechsVsOrigName = new HashMap<String, String>();
                 
-                for (ChannelMechanism cm: cell.getChanMechsVsGroups().keySet()) {
+                for (ChannelMechanism cm: cell.getChanMechsVsGroups().keySet()) { 
                     String cmNml2Name = cm.getNML2Name();
                     if (!allChanMechsVsOrigName.containsKey(cmNml2Name))
                         allChanMechsVsOrigName.put(cmNml2Name, cm.getName());
                 }
+                
+
+                Set<VariableMechanism> varMechEnum = cell.getVarMechsVsParaGroups().keySet();
+                for (VariableMechanism vm: varMechEnum) 
+                {
+                    String cmNml2Name = vm.getNML2Name();
+                    if (!allChanMechsVsOrigName.containsKey(cmNml2Name))
+                        allChanMechsVsOrigName.put(cmNml2Name, vm.getName());
+                }
                 ArrayList<String> allChanMechs = new ArrayList<String>();
                 allChanMechs.addAll(allChanMechsVsOrigName.keySet());
+                
                 allChanMechs = (ArrayList<String>)GeneralUtils.reorderAlphabetically(allChanMechs, true);
 
                 for(String chan: allChanMechs)                    

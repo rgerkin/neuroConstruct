@@ -51,6 +51,29 @@ from ucl.physiol.neuroconstruct.pynn.PynnFileManager import PynnSimulator
 from ucl.physiol.neuroconstruct.neuroml import NeuroMLFileManager
 
 
+def loadMepFile(mepFile, scale=1):
+    # Load an OMV mep file, see https://github.com/OpenSourceBrain/osb-model-validation
+    spike_times = {}
+    mep_file = open(mepFile)
+    exp_name = ""
+    for line in mep_file:
+        line = line.strip()
+        if line.startswith('system:'):
+            pass
+        elif line.startswith('expected:'):
+            pass
+        elif line.startswith('spike times: ['):
+            times = line[14:-1].split(',')
+            tt = []
+            for time in times:
+                tt.append(float(time.strip())*scale)
+            spike_times[exp_name] = tt
+        else:
+            exp_name = line[:-1]
+    return spike_times
+                
+    
+
 def generateNeuroML2(projFile, 
                      simConfigs, 
                      neuroConstructSeed = 1234,
@@ -589,7 +612,7 @@ class SimulationManager():
 
             self.printver("Waiting for sims: %s to finish..."%str(self.allRunningSims))
 
-            time.sleep(1) # wait a while...
+            time.sleep(2) # wait a while...
             self.updateSimsRunning()
             
             self.reloadSims(waitForAllSimsToFinish,
@@ -605,7 +628,7 @@ class SimulationManager():
 
         self.updateSimsRunning()
 
-        self.printver( "Trying to check simulations: %s against: %s, with threshold: %s" % (str(self.allFinishedSims), str(spikeTimesToCheck), str(threshold)))
+        self.printver( "Trying to check simulations: %s against: %s, with a threshold: %s" % (str(self.allFinishedSims), str(spikeTimesToCheck), str(threshold)))
 
         report = ""
         numPassed = 0
@@ -627,7 +650,7 @@ class SimulationManager():
 
                 for dataStore in simData.getAllLoadedDataStores():
 
-                    self.printver("Checking dataStore: "+str(dataStore))
+                    self.printver("Checking dataStore: "+str(dataStore)+" ("+dataStore.getCellSegRef()+")")
                     ds = simData.getDataSet(dataStore.getCellSegRef(), dataStore.getVariable(), False)
 
                     if dataStore.getVariable() == SimPlot.VOLTAGE:

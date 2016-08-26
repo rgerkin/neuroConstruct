@@ -27,7 +27,7 @@
   
     <tstamp/>
     <property name="name" value="neuroConstruct"/>
-    <property name="version" value="1.7.1"/>
+    <property name="version" value="1.7.2"/>
     <property name="version.impl" value="${version}"/>
     <property name="year" value="2012"/>
 
@@ -230,8 +230,8 @@
            debug="${debug}"
            optimize="${optimize}"
            compiler="modern"
-           source="1.5"
-           target="1.5"
+           source="1.6"
+           target="1.6"
            includeantruntime="false">
       <classpath refid="compile.class.path"/>
       <compilerarg value="-Xlint:serial"/> <!-- As cells can be stored as Java serialised objs, essential to have this check-->
